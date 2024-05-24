@@ -1,5 +1,4 @@
 ﻿using CosmosDBEmployeeManagementAPI.Model;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Cosmos;
 using Container = Microsoft.Azure.Cosmos.Container;
@@ -10,7 +9,7 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
     [ApiController]
     public class TransactionBatchOperationController : ControllerBase
     {
-        //Batch operations only works with same partition key
+        //Batch operations only works with same partition key.
         private record Product(string id, string name, string categoryId);
         Product saddle = new Product("0120", "Worn Saddle", "accessories-used");
         Product handlebar = new Product("012A", "Rusty Handlebar", "accessories-used");
@@ -45,6 +44,12 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
             TransactionalBatch batch = GetContainer().CreateTransactionalBatch(partitionKey)
                 .CreateItem<Product>(saddle)
                 .CreateItem<Product>(handlebar);
+
+            /*
+             OR 
+                batch.CreateItem<Product>(handlebar);
+                batch.DeleteItem(handlebar.id);
+             */
             using TransactionalBatchResponse batchRes = await batch.ExecuteAsync();
             return Ok(GetItemCollection(batchRes));
         }

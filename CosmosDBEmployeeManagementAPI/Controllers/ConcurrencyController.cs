@@ -1,8 +1,6 @@
 ﻿using CosmosDBEmployeeManagementAPI.Model;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Cosmos;
-using System.Reflection.Metadata;
 
 namespace CosmosDBEmployeeManagementAPI.Controllers
 {
@@ -22,6 +20,10 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
         [HttpPut]
         public async Task<IActionResult> UpsertMultipleItem()
         {
+            /*
+             *Fetch Etag from item and pass it to next update statement.
+             *Etag value changes everytime we update the item.
+             */
             ItemResponse<Product> itemResponse = await GetContainer().ReadItemAsync<Product>(saddle.id, partitionKey);
             saddle = new Product("0120", "Worn Saddle 55", "accessories-used");
 
