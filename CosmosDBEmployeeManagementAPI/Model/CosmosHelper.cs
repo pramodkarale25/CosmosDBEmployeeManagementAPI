@@ -1,4 +1,6 @@
 ﻿using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Fluent;
+using System.Collections.ObjectModel;
 
 namespace CosmosDBEmployeeManagementAPI.Model
 {
@@ -21,13 +23,67 @@ namespace CosmosDBEmployeeManagementAPI.Model
                 //if DefaultTimeToLive = NULL - Items will never expire. Individual item values ignored.
                 //if DefaultTimeToLive = -1 - By default Items will never expire. Individual item values gets applied.
                 //if DefaultTimeToLive = 10 - all items gets expired after 10 sec.
+                IndexingPolicy = GetIndexingPolicy(),
 
             };
+
             CosmosClient client = new CosmosClient(conString);
             Database db = await client.CreateDatabaseIfNotExistsAsync(dbName);
             Container container = await db.CreateContainerIfNotExistsAsync(properties);
 
             return container;
+        }
+
+        public static IndexingPolicy GetIndexingPolicy()
+        {
+            IndexingPolicy defaultPolicy = new IndexingPolicy()
+            {
+                //IndexingMode = IndexingMode.Consistent,//Default - indexing is updated synchronously with create/update/delete operation.
+                //IndexingMode = IndexingMode.Lazy,//indexing is updated asynchronously with create/update/delete operation.
+                IndexingMode = IndexingMode.None,//No index is provided.
+                //Configures whether automatically indexes items as they are written
+                Automatic = true,//default
+                //Set of paths to include in the index
+                //IncludedPaths =  deafualt All - "*"
+                //Set of paths to exclude from the index
+                //ExcludedPaths - Default - _etag property path
+            };
+
+            /*
+                The ? operator indicates that a path terminates with a string or number (scalar) value
+                The [] operator indicates that this path includes an array and avoids having to specify an array index value
+                The * operator is a wildcard and matches any element beyond the current path
+
+                Path expression	    Description
+                /*	                All properties
+                /name/?	            The scalar value of the name property
+                /category/*	        All properties under the category property
+                /metadata/sku/?	    The scalar value of the metadata.sku property
+                /tags/[]/name/?	    Within the tags array, the scalar values of all possible name properties
+             */
+
+            IndexingPolicy policy = new IndexingPolicy()
+            {
+                IndexingMode = IndexingMode.Consistent,
+                Automatic = true
+            };
+
+            policy.IncludedPaths.Add(new IncludedPath() { Path = "/name/?" });
+            policy.IncludedPaths.Add(new IncludedPath() { Path = "/categoryName/?" });
+            policy.ExcludedPaths.Add(new ExcludedPath() { Path = "/*" });
+
+            //Optional Composite Index
+            //SELECT* FROM products p WHERE p.name = "Road Saddle" AND p.price > 50
+            //SELECT * FROM products p ORDER BY p.price ASC, p.name ASC
+            Collection<CompositePath> compositeIndexList = new Collection<CompositePath>
+            {
+                new CompositePath() { Path = "/name", Order = CompositePathSortOrder.Ascending },
+                new CompositePath() { Path = "/price", Order = CompositePathSortOrder.Descending }
+            };
+
+            policy.CompositeIndexes.Add(compositeIndexList);
+
+            return policy;
         }
     }
 }
