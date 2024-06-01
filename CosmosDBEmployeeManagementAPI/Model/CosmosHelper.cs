@@ -15,6 +15,13 @@ namespace CosmosDBEmployeeManagementAPI.Model
 
         public async static Task<Container> CreateDBAndContainer(string dbName, string containerName, string partitionKey)
         {
+            RequestOptions dbRequestOptions = new RequestOptions();
+            dbRequestOptions.PriorityLevel = PriorityLevel.High;
+            dbRequestOptions.IfNoneMatchEtag = "";//mostly we use this in update operation.
+            dbRequestOptions.IfMatchEtag = "";//mostly we use this in update operation.
+            //dbRequestOptions.AddRequestHeaders;
+            dbRequestOptions.CosmosThresholdOptions = new CosmosThresholdOptions() { };
+            
             ContainerProperties properties = new ContainerProperties()
             {
                 Id = containerName,
@@ -24,11 +31,10 @@ namespace CosmosDBEmployeeManagementAPI.Model
                 //if DefaultTimeToLive = -1 - By default Items will never expire. Individual item values gets applied.
                 //if DefaultTimeToLive = 10 - all items gets expired after 10 sec.
                 IndexingPolicy = GetIndexingPolicy(),
-
             };
 
             CosmosClient client = new CosmosClient(conString);
-            Database db = await client.CreateDatabaseIfNotExistsAsync(dbName);
+            Database db = await client.CreateDatabaseIfNotExistsAsync(id: dbName, throughput: 500, requestOptions:dbRequestOptions);
             Container container = await db.CreateContainerIfNotExistsAsync(properties);
 
             return container;
