@@ -53,10 +53,11 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
         {
             CosmosClientOptions options = new CosmosClientOptions()
             {
-                ConnectionMode = ConnectionMode.Gateway,
+                //ConnectionMode = ConnectionMode.Gateway,//used for connection through integrated cache.
+                ConnectionMode = ConnectionMode.Direct,//used for direct connection to cosmos DB.
                 ConsistencyLevel = ConsistencyLevel.Eventual,
                 ApplicationRegion = "westus",
-                ApplicationPreferredRegions = new List<string> { "westus", "eastus" }
+                ApplicationPreferredRegions = new List<string> { "westus", "eastus" },
             };
 
             CosmosClient client = new CosmosClient(CosmosHelper.conString, options);
