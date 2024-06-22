@@ -1,4 +1,5 @@
-﻿using CosmosDBEmployeeManagementAPI.Model;
+﻿using Azure;
+using CosmosDBEmployeeManagementAPI.Model;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Scripts;
@@ -10,15 +11,15 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
     public class SP_UDF_Triggers_Controller : ControllerBase
     {
         private record Product(string id, string name, string categoryId);
-        Product saddle = new Product("0120", "Worn Saddle", "accessories-used");
+        Product productItem = new Product("0120", "Worn Saddle", "accessories-used");
         PartitionKey partitionKey = new PartitionKey("accessories-used");
         private Container GetContainer()
         {
-            return CosmosHelper.CreateDBAndContainer("ProductDB", "Product", "categoryId").Result;
+            return CosmosHelper.CreateDBAndContainer("SP_UDF_Trigger", "Product", "categoryId").Result;
         }
 
         [HttpPost]
-        public async Task CreateStoredProc()
+        public async Task<StoredProcedureResponse> CreateStoredProc()
         {
             string storedProc = @"
                                     function createProduct(item)
@@ -44,10 +45,11 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
             };
 
             StoredProcedureResponse storedProcedureResponse = await GetContainer().Scripts.CreateStoredProcedureAsync(storedProcedureProperties);
+            return storedProcedureResponse;
         }
 
         [HttpPost]
-        public async Task CreateUDF()
+        public async Task<UserDefinedFunctionResponse> CreateUDF()
         {
             string UDF = @"
                             function getTaxedPrice(price)
@@ -62,13 +64,14 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
                 Body = UDF
             };
 
-            UserDefinedFunctionResponse UdfResponse = await GetContainer().Scripts.CreateUserDefinedFunctionAsync(userDefinedFunctionProperties);
+            UserDefinedFunctionResponse udfResponse = await GetContainer().Scripts.CreateUserDefinedFunctionAsync(userDefinedFunctionProperties);
+            return udfResponse;
         }
 
         [HttpPost]
-        public async Task CreatePreTrigger()
+        public async Task<TriggerResponse> CreatePreTrigger()
         {
-            string UDF = @"
+            string preTrigger = @"
                             function AddPrice()
                             {
                                var context = getContext();
@@ -82,19 +85,22 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
                             }
                         ";
 
-            UserDefinedFunctionProperties userDefinedFunctionProperties = new UserDefinedFunctionProperties()
+            TriggerProperties triggerProperties = new TriggerProperties()
             {
                 Id = "AddPricePreTriggerUDF",
-                Body = UDF
+                Body = preTrigger,
+                TriggerOperation = TriggerOperation.Create,
+                TriggerType = TriggerType.Pre
             };
 
-            UserDefinedFunctionResponse UdfResponse = await GetContainer().Scripts.CreateUserDefinedFunctionAsync(userDefinedFunctionProperties);
+            TriggerResponse triggerResponse = await GetContainer().Scripts.CreateTriggerAsync(triggerProperties);
+            return triggerResponse;
         }
 
         [HttpPost]
-        public async Task CreatePostTrigger()
+        public async Task<TriggerResponse> CreatePostTrigger()
         {
-            string UDF = @"
+            string postTrigger = @"
                             function CreateNewProduct()
                             {
                                var context = getContext();
@@ -120,13 +126,53 @@ namespace CosmosDBEmployeeManagementAPI.Controllers
                             }
                         ";
 
-            UserDefinedFunctionProperties userDefinedFunctionProperties = new UserDefinedFunctionProperties()
+            TriggerProperties triggerProperties = new TriggerProperties()
             {
                 Id = "CreateNewProductPostTriggerUDF",
-                Body = UDF
+                Body = postTrigger,
+                TriggerOperation = TriggerOperation.Create,
+                TriggerType = TriggerType.Post
             };
 
-            UserDefinedFunctionResponse UdfResponse = await GetContainer().Scripts.CreateUserDefinedFunctionAsync(userDefinedFunctionProperties);
+            TriggerResponse triggerResponse = await GetContainer().Scripts.CreateTriggerAsync(triggerProperties);
+            return triggerResponse;
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ExecuteTrigger()
+        {
+            ItemRequestOptions itemRequestOptions = new ItemRequestOptions()
+            {
+                PreTriggers = new List<string>() { "AddPricePreTriggerUDF" },
+                PostTriggers = new List<string>() { "CreateNewProductPostTriggerUDF" },
+            };
+
+            Product p = await GetContainer().CreateItemAsync<Product>(productItem, requestOptions: itemRequestOptions);
+            return Ok(p);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExecuteUDF()
+        {
+            string query = "select c.name,c.price,udf.getTaxedPriceUDF(c.price) as TaxedPrice from c";
+
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+
+            FeedIterator<Product> iterator = GetContainer().GetItemQueryIterator<Product>(queryDefinition);
+            FeedResponse<Product> response = null;
+
+            if (iterator.HasMoreResults)
+            {
+                response = await iterator.ReadNextAsync();
+            }
+
+            return Ok(response);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ExecuteStoredProc()
+        {
+            return Ok();
         }
     }
 }
